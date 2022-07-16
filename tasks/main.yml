@@ -1,0 +1,78 @@
+---
+# tasks file for wordpress
+
+- name: Include all .yml in vars/all and all nested directories (2.3)
+  include_vars:
+    dir: 'vars/all'
+    extensions: 'yml'
+        
+
+
+- name: Installing dependency packeges for wordpress
+       ansible.builtin.apt:
+         name: '{{ item }}'
+         state: present
+       loop: '{{ packages }}'  
+       when: ansible_facts['distribution'] == "Ubuntu"
+
+     - name: Creating  wordpress db
+       community.mysql.mysql_db:
+         login_user: 'root'
+         login_password: '{{ rootpassword }}'
+         login_host: 'localhost'
+         name: 'wp_db'
+         state: present     
+
+     - name: Creating Mysql user and granting privileges
+       community.mysql.mysql_user:
+         login_user: 'root'
+         login_password: '{{ rootpassword }}'
+         login_host: 'localhost'
+         name: 'wp_user'
+         password: '{{ wppassword }}'
+         priv: 'wordpress_db.*:ALL' 
+         state: present
+           
+     - name: Downloading wordpress files
+       ansible.builtin.shell:
+         cmd: 
+           wget https://wordpress.org/latest.tar.gz -O /var/www/html/wordpress.tar.gz
+     
+     - name: Preparing directories
+       file:
+         path: '{{ wp_path }}'
+         state: directory   
+
+     - name: Extracting wordpress files
+       ansible.builtin.unarchive:
+         src: /var/www/html/wordpress.tar.gz
+         dest: /var/www/html/
+         remote_src: yes
+
+     - name: wordpress congiguration 
+       ansible.builtin.shell: |     
+           cp '{{ wp_path }}/wp-config-sample.php' '{{ wp_path }}/wp-config.php'
+           sed -i 's/database_name_here/wordpress_db/' {{ wp_path }}/wp-config.php
+           sed -i 's/username_here/wp_user/' {{ wp_path }}/wp-config.php
+           sed -i 's/password_here/{{ wppassword }}/' {{ wp_path }}/wp-config.php
+       become: yes   
+
+     - name: Copying vhostfile
+       ansible.builtin.template:
+         src: wordpressconfig.j2
+         dest: "{{ apache_conf }}/wordpress.conf"
+         owner: 'root'
+         group: 'root'
+         mode: '0644'
+       changed_when: true
+       notify: Restart apache
+
+
+     - name:  setting permission for wordpress directory
+       ansible.builtin.file:
+         path: "{{ wp_path }}"
+         state: directory
+         recurse: yes
+         owner: www-data
+         group: www-data
+

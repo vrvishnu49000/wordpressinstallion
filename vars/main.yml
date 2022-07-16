@@ -1,0 +1,6 @@
+---
+# vars file for wordpress
+apache_conf: /etc/apache2/sites-available/
+httpd_conf: /etc/httpd/conf.d/
+http_port: 80
+wp_path: /var/www/html/wordpress
